@@ -47,7 +47,7 @@ export default function Home() {
   return (
     <div className='min-h-screen bg-black text-white overflow-x-hidden'>
       {/* Navigation Dots - Fixed */}
-      <nav className='fixed right-4 md:right-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3'>
+      <nav className='fixed right-3 md:right-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2 md:gap-3'>
         {sections.map((_, i) => (
           <button
             key={i}
@@ -56,10 +56,10 @@ export default function Home() {
               setActiveSection(i);
               document.getElementById(sections[i])?.scrollIntoView({ behavior: 'smooth' });
             }}
-            className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+            className={`w-2 h-2 md:w-1.5 md:h-1.5 rounded-full transition-all duration-300 touch-manipulation ${
               activeSection === i
-                ? 'bg-[hsl(25,100%,50%)] scale-150'
-                : 'bg-white/30 hover:bg-white/50'
+                ? 'bg-[hsl(25,100%,50%)] scale-110 md:scale-150 w-2.5 h-2.5 md:w-2.5 md:h-2.5'
+                : 'bg-white/30 hover:bg-white/50 active:bg-white/60'
             }`}
             aria-label={`Go to section ${i + 1}`}
           />
