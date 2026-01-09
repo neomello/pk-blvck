@@ -93,16 +93,8 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black" />
         </div>
 
-        {/* Logo */}
+        {/* Technical Markers */}
         <div className="relative z-10 flex flex-col items-center px-4">
-          <img
-            src="https://res.cloudinary.com/de5jsf8pj/image/upload/v1767914884/blvck_logo_whofxk.png"
-            alt="BLVCK"
-            data-testid="logo-main"
-            className="w-40 md:w-56 lg:w-64 mb-8"
-          />
-          
-          {/* Technical Markers */}
           <div className="flex items-center gap-4 mt-8">
             <span className="w-8 h-px bg-white/20" />
             <span className="font-mono text-[10px] tracking-[0.4em] text-white/30">SYS.01</span>

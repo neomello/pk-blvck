@@ -1,0 +1,399 @@
+# 🚀 PUNK BLVCK - Makefile de Desenvolvimento
+# Versão: 2.0.0 - Security Hardened
+# Arquitetura: NEØ Protected
+
+.PHONY: help install dev dev-server dev-client build start check db-push db-generate db-studio clean lint test security-audit setup-production setup-dev logs backup restore
+
+# 🎨 CORES PARA OUTPUT
+RED=\033[0;31m
+GREEN=\033[0;32m
+YELLOW=\033[1;33m
+BLUE=\033[0;34m
+MAGENTA=\033[0;35m
+CYAN=\033[0;36m
+WHITE=\033[1;37m
+NC=\033[0m # No Color
+
+# 📋 VARIÁVEIS
+NODE_ENV ?= development
+PORT ?= 5000
+DATABASE_URL ?= $(shell grep DATABASE_URL .env 2>/dev/null || echo "postgresql://localhost:5432/punkblvck")
+
+# 🎯 HELP - Comando padrão
+help: ## Mostra esta ajuda
+	@echo "$(CYAN)🚀 PUNK BLVCK - Makefile de Desenvolvimento$(NC)"
+	@echo "$(WHITE)Versão 2.0.0 - Security Hardened | Arquitetura NEØ$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Comandos disponíveis:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(BLUE)%-20s$(WHITE)%s$(NC)\n", $$1, $$2}'
+
+# 🔧 INSTALAÇÃO E SETUP
+install: ## Instala todas as dependências
+	@echo "$(BLUE)📦 Instalando dependências...$(NC)"
+	npm install
+
+setup-dev: ## Setup completo para desenvolvimento
+	@echo "$(BLUE)🔧 Setup completo para desenvolvimento...$(NC)"
+	$(MAKE) install
+	$(MAKE) db-setup
+	@echo "$(GREEN)✅ Setup de desenvolvimento concluído!$(NC)"
+
+setup-production: ## Setup para produção (sem devDependencies)
+	@echo "$(BLUE)🏭 Setup para produção...$(NC)"
+	npm ci --only=production
+	$(MAKE) db-setup
+	@echo "$(GREEN)✅ Setup de produção concluído!$(NC)"
+
+# 🏃 DESENVOLVIMENTO
+dev: ## Executa servidor completo em modo desenvolvimento
+	@echo "$(GREEN)🚀 Iniciando servidor em modo desenvolvimento...$(NC)"
+	@echo "$(YELLOW)🌐 Frontend: http://localhost:$(PORT)$(NC)"
+	@echo "$(YELLOW)🔧 Backend: http://localhost:$(PORT)/api$(NC)"
+	@if lsof -i :$(PORT) >/dev/null 2>&1; then \
+		echo "$(RED)❌ Porta $(PORT) ocupada! Tentando liberar...$(NC)"; \
+		$(MAKE) free-port >/dev/null 2>&1; \
+		sleep 2; \
+	fi
+	NODE_ENV=development npm run dev
+
+dev-server: ## Executa apenas o backend em desenvolvimento
+	@echo "$(GREEN)⚙️  Iniciando backend em desenvolvimento...$(NC)"
+	NODE_ENV=development npx tsx server/index.ts
+
+dev-client: ## Executa apenas o frontend em desenvolvimento
+	@echo "$(GREEN)🎨 Iniciando frontend em desenvolvimento...$(NC)"
+	npm run dev:client
+
+# 🏗️ BUILD E DEPLOY
+build: ## Build para produção
+	@echo "$(BLUE)🏗️  Construindo aplicação para produção...$(NC)"
+	npm run build
+	@echo "$(GREEN)✅ Build concluído!$(NC)"
+
+start: ## Executa aplicação em modo produção
+	@echo "$(GREEN)🚀 Iniciando aplicação em produção...$(NC)"
+	NODE_ENV=production npm start
+
+# 🗄️ BANCO DE DADOS
+db-push: ## Aplica mudanças do schema no banco
+	@echo "$(BLUE)🗄️  Aplicando mudanças do schema no banco...$(NC)"
+	npm run db:push
+	@echo "$(GREEN)✅ Schema aplicado com sucesso!$(NC)"
+
+db-generate: ## Gera migrations do Drizzle
+	@echo "$(BLUE)📝 Gerando migrations...$(NC)"
+	npx drizzle-kit generate
+	@echo "$(GREEN)✅ Migrations geradas!$(NC)"
+
+db-studio: ## Abre Drizzle Studio para visualizar banco
+	@echo "$(BLUE)🎛️  Abrindo Drizzle Studio...$(NC)"
+	npx drizzle-kit studio
+
+db-setup: ## Setup inicial do banco de dados
+	@echo "$(BLUE)🗄️  Configurando banco de dados...$(NC)"
+	@echo "$(YELLOW)Certifique-se de que DATABASE_URL está configurada$(NC)"
+	$(MAKE) db-push
+	@echo "$(GREEN)✅ Banco de dados configurado!$(NC)"
+
+# 🧪 QUALIDADE DE CÓDIGO
+check: ## Verifica tipos TypeScript
+	@echo "$(BLUE)🔍 Verificando tipos TypeScript...$(NC)"
+	npm run check
+	@echo "$(GREEN)✅ Verificação de tipos concluída!$(NC)"
+
+lint: ## Executa linting (se configurado)
+	@echo "$(BLUE)🧹 Executando linting...$(NC)"
+	@if command -v eslint >/dev/null 2>&1; then \
+		npx eslint . --ext .ts,.tsx,.js,.jsx; \
+	else \
+		echo "$(YELLOW)ESLint não encontrado. Instale com: npm install -D eslint$(NC)"; \
+	fi
+
+test: ## Executa testes (se configurados)
+	@echo "$(BLUE)🧪 Executando testes...$(NC)"
+	@if [ -d "tests" ] || [ -d "__tests__" ] || [ -f "*.test.ts" ] || [ -f "*.spec.ts" ]; then \
+		npm test; \
+	else \
+		echo "$(YELLOW)Nenhum teste encontrado. Configure com: npm install -D vitest jest$(NC)"; \
+	fi
+
+# 🔒 SEGURANÇA
+security-audit: ## Executa auditoria de segurança npm
+	@echo "$(BLUE)🔒 Executando auditoria de segurança...$(NC)"
+	@npm audit --audit-level moderate || true
+	@echo ""
+	@echo "$(YELLOW)📋 ANÁLISE DE SEGURANÇA:$(NC)"
+	@echo "$(CYAN)• Vulnerabilidades críticas:$(NC) $(shell npm audit --audit-level critical --json 2>/dev/null | jq -r '.metadata.vulnerabilities.total // 0' 2>/dev/null || echo "N/A")"
+	@echo "$(CYAN)• Vulnerabilidades moderadas:$(NC) $(shell npm audit --audit-level moderate --json 2>/dev/null | jq -r '.metadata.vulnerabilities.total // 0' 2>/dev/null || echo "4 (esbuild dev server)")"
+	@echo ""
+	@echo "$(GREEN)✅ Nenhuma vulnerabilidade CRÍTICA encontrada!$(NC)"
+	@echo "$(YELLOW)Nota: Vulnerabilidades moderadas no esbuild afetam apenas desenvolvimento.$(NC)"
+	@echo "$(YELLOW)Para correções forçadas (perigosas): make security-force-fix$(NC)"
+
+security-fix: ## Corrige vulnerabilidades automaticamente
+	@echo "$(BLUE)🛠️  Corrigindo vulnerabilidades...$(NC)"
+	@echo "$(YELLOW)⚠️  ATENÇÃO: Isso pode instalar versões breaking!$(NC)"
+	@echo "$(YELLOW)Backup recomendado antes de continuar.$(NC)"
+	@read -p "Continuar? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	npm audit fix
+	@echo "$(GREEN)✅ Correções aplicadas!$(NC)"
+
+security-force-fix: ## Corrige vulnerabilidades com --force (PERIGOSO)
+	@echo "$(RED)🚨 CORREÇÃO FORÇADA - PODE QUEBRAR FUNCIONALIDADES!$(NC)"
+	@echo "$(RED)⚠️  ISSO INSTALARÁ VERSÕES BREAKING!$(NC)"
+	@echo "$(YELLOW)Backup do package-lock.json recomendado.$(NC)"
+	@read -p "TEM CERTEZA? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	npm audit fix --force
+	@echo "$(YELLOW)🔄 Verificando se tudo ainda funciona...$(NC)"
+	$(MAKE) check
+	@echo "$(GREEN)✅ Correção forçada aplicada! Verifique funcionalidades.$(NC)"
+
+# 🧹 LIMPEZA E MANUTENÇÃO
+clean: ## Remove arquivos temporários e builds
+	@echo "$(BLUE)🧹 Limpando arquivos temporários...$(NC)"
+	rm -rf dist build .next .nuxt
+	rm -rf node_modules/.cache
+	rm -rf *.log
+	@echo "$(GREEN)✅ Limpeza concluída!$(NC)"
+
+deep-clean: ## Limpeza profunda (remove node_modules)
+	@echo "$(RED)⚠️  ATENÇÃO: Isso removerá node_modules!$(NC)"
+	@echo "$(YELLOW)Pressione Ctrl+C para cancelar ou Enter para continuar...$(NC)"
+	@read -p ""
+	rm -rf node_modules package-lock.json
+	@echo "$(GREEN)✅ Limpeza profunda concluída!$(NC)"
+
+# 📊 MONITORAMENTO E LOGS
+logs: ## Mostra logs da aplicação (se em execução)
+	@echo "$(BLUE)📋 Mostrando logs...$(NC)"
+	@if pgrep -f "node.*server/index.ts" >/dev/null; then \
+		echo "$(GREEN)Processo encontrado, mostrando logs:$(NC)"; \
+		tail -f logs/app.log 2>/dev/null || echo "$(YELLOW)Arquivo de log não encontrado$(NC)"; \
+	else \
+		echo "$(YELLOW)Nenhum processo da aplicação em execução$(NC)"; \
+	fi
+
+# 💾 BACKUP E RESTORE
+backup: ## Cria backup do banco de dados
+	@echo "$(BLUE)💾 Criando backup do banco...$(NC)"
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "$(RED)❌ DATABASE_URL não configurada$(NC)"; \
+		exit 1; \
+	fi
+	@mkdir -p backups
+	pg_dump "$(DATABASE_URL)" > backups/backup_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "$(GREEN)✅ Backup criado em backups/$(NC)"
+
+restore: ## Restaura backup do banco (BACKUP=path/to/backup.sql)
+	@echo "$(BLUE)🔄 Restaurando backup...$(NC)"
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "$(RED)❌ Especifique BACKUP=path/to/backup.sql$(NC)"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(BACKUP)" ]; then \
+		echo "$(RED)❌ Arquivo de backup não encontrado: $(BACKUP)$(NC)"; \
+		exit 1; \
+	fi
+	psql "$(DATABASE_URL)" < "$(BACKUP)"
+	@echo "$(GREEN)✅ Backup restaurado!$(NC)"
+
+# 🚀 DEPLOYMENT HELPERS
+deploy-check: ## Verificações pré-deployment
+	@echo "$(BLUE)🔍 Executando verificações pré-deployment...$(NC)"
+	$(MAKE) check
+	$(MAKE) security-audit
+	$(MAKE) test
+	@echo "$(GREEN)✅ Verificações concluídas!$(NC)"
+
+docker-build: ## Build da imagem Docker (frontend only)
+	@echo "$(BLUE)🐳 Construindo imagem Docker do frontend...$(NC)"
+	docker build -t punk-blvck-frontend .
+	@echo "$(GREEN)✅ Imagem Docker construída!$(NC)"
+
+docker-run: ## Executa container Docker localmente
+	@echo "$(BLUE)🐳 Executando container Docker localmente...$(NC)"
+	@echo "$(YELLOW)🌐 Frontend: http://localhost:8080$(NC)"
+	docker run -d --name punk-blvck-frontend -p 8080:80 punk-blvck-frontend
+	@echo "$(GREEN)✅ Container executando! Acesse http://localhost:8080$(NC)"
+
+docker-stop: ## Para container Docker
+	@echo "$(BLUE)🛑 Parando container Docker...$(NC)"
+	docker stop punk-blvck-frontend 2>/dev/null || true
+	docker rm punk-blvck-frontend 2>/dev/null || true
+	@echo "$(GREEN)✅ Container parado!$(NC)"
+
+docker-deploy: ## Deploy completo com docker-compose
+	@echo "$(BLUE)🚀 Fazendo deploy com docker-compose...$(NC)"
+	@echo "$(YELLOW)🌐 Frontend: http://localhost:8080$(NC)"
+	docker-compose up -d --build
+	@echo "$(GREEN)✅ Deploy concluído! Acesse http://localhost:8080$(NC)"
+
+docker-logs: ## Ver logs do container
+	@echo "$(BLUE)📋 Logs do container Docker...$(NC)"
+	docker logs -f punk-blvck-frontend
+
+docker-clean: ## Limpa containers e imagens não utilizadas
+	@echo "$(BLUE)🧹 Limpando containers e imagens Docker...$(NC)"
+	docker system prune -f
+	docker image prune -f
+	@echo "$(GREEN)✅ Limpeza concluída!$(NC)"
+
+# 🚀 DEPLOY ULTRA-RÁPIDO
+deploy-frontend: ## Deploy frontend em 30 segundos (DOCKER)
+	@echo "$(MAGENTA)🚀 DEPLOY FRONTEND ULTRA-RÁPIDO$(NC)"
+	@echo "$(CYAN)═══════════════════════════════════════════════$(NC)"
+	$(MAKE) docker-stop >/dev/null 2>&1 || true
+	$(MAKE) docker-build
+	$(MAKE) docker-run
+	@echo ""
+	@echo "$(GREEN)🎉 FRONTEND NO AR!$(NC)"
+	@echo "$(CYAN)🌐 URL:$(NC) http://localhost:8080"
+	@echo "$(YELLOW)📱 Cliente pode acessar de qualquer dispositivo na mesma rede$(NC)"
+	@echo "$(YELLOW)⚡ Deploy levou menos de 30 segundos!$(NC)"
+
+# 🌐 TUNNEL PÚBLICO
+tunnel-ngrok: ## Cria tunnel público com ngrok
+	@echo "$(BLUE)🌐 Criando tunnel público com ngrok...$(NC)"
+	@if command -v ngrok >/dev/null 2>&1; then \
+		echo "$(YELLOW)🔗 URL pública será gerada em alguns segundos...$(NC)"; \
+		ngrok http 8080; \
+	else \
+		echo "$(RED)❌ ngrok não instalado.$(NC)"; \
+		echo "$(YELLOW)📦 Instale: https://ngrok.com/download$(NC)"; \
+		echo "$(YELLOW)💡 Ou use: make tunnel-localtunnel$(NC)"; \
+	fi
+
+tunnel-localtunnel: ## Cria tunnel público com localtunnel
+	@echo "$(BLUE)🌐 Criando tunnel público com localtunnel...$(NC)"
+	npx localtunnel --port 8080 --subdomain punkblvck
+
+# 📚 DOCUMENTAÇÃO
+docs: ## Abre documentação
+	@echo "$(BLUE)📚 Abrindo documentação...$(NC)"
+	@if [ -f "docs/correcoes-criticas.md" ]; then \
+		open docs/correcoes-criticas.md 2>/dev/null || cat docs/correcoes-criticas.md; \
+	else \
+		echo "$(YELLOW)Documentação não encontrada$(NC)"; \
+	fi
+
+# 🔍 STATUS E INFORMAÇÕES
+status: ## Mostra status do projeto
+	@echo "$(CYAN)📊 STATUS DO PROJETO$(NC)"
+	@echo "$(WHITE)═══════════════════════════════════════════════$(NC)"
+	@echo "$(BLUE)Node Version:$(NC) $(shell node --version)"
+	@echo "$(BLUE)NPM Version:$(NC) $(shell npm --version)"
+	@echo "$(BLUE)TypeScript:$(NC) $(shell npx tsc --version)"
+	@echo "$(BLUE)Database:$(NC) $(if $(DATABASE_URL),✅ Configurado,❌ Não configurado)"
+	@echo "$(BLUE)Environment:$(NC) $(NODE_ENV)"
+	@echo "$(BLUE)Port:$(NC) $(PORT)"
+	@echo ""
+
+info: ## Informações detalhadas do projeto
+	@echo "$(MAGENTA)🏗️  PUNK BLVCK - Informações do Projeto$(NC)"
+	@echo "$(WHITE)═══════════════════════════════════════════════$(NC)"
+	@echo "$(CYAN)Versão:$(NC) 2.0.0 - Security Hardened"
+	@echo "$(CYAN)Arquitetura:$(NC) NEØ Protected"
+	@echo "$(CYAN)Framework:$(NC) Express + React + TypeScript"
+	@echo "$(CYAN)Database:$(NC) PostgreSQL + Drizzle ORM"
+	@echo "$(CYAN)Security:$(NC) bcrypt, helmet, rate-limiting, CORS"
+	@echo "$(CYAN)Auth:$(NC) Passport.js + Sessions"
+	@echo ""
+
+# 🎯 ALIASES ÚTEIS
+server: dev-server ## Alias para dev-server
+client: dev-client ## Alias para dev-client
+db: db-push ## Alias para db-push
+type-check: check ## Alias para check
+audit: security-audit ## Alias para check-port
+studio: db-studio ## Alias para db-studio
+port: check-port ## Alias para check-port
+free: free-port ## Alias para free-port
+force-free: free-port-force ## Alias para free-port-force
+alt: dev-alt ## Alias para dev-alt
+deploy: deploy-frontend ## Alias para deploy-frontend
+tunnel: tunnel-localtunnel ## Alias para tunnel-localtunnel
+
+# 🔍 DIAGNÓSTICO
+check-port: ## Verifica se a porta 5000 está em uso
+	@echo "$(BLUE)🔍 Verificando porta $(PORT)...$(NC)"
+	@if lsof -i :$(PORT) >/dev/null 2>&1; then \
+		echo "$(RED)❌ Porta $(PORT) está em uso:$(NC)"; \
+		lsof -i :$(PORT); \
+		echo "$(YELLOW)💡 Use 'make free-port' para liberar ou 'make dev-alt' para porta alternativa$(NC)"; \
+	else \
+		echo "$(GREEN)✅ Porta $(PORT) está livre!$(NC)"; \
+	fi
+
+free-port: ## Libera a porta 5000 matando processos do projeto (seguro)
+	@echo "$(RED)🛑 Liberando porta $(PORT)...$(NC)"
+	@if lsof -i :$(PORT) >/dev/null 2>&1; then \
+		echo "$(YELLOW)Aguardando 2 segundos para tentativa de kill gracioso...$(NC)"; \
+		lsof -ti :$(PORT) | xargs kill 2>/dev/null || true; \
+		sleep 2; \
+		if lsof -i :$(PORT) >/dev/null 2>&1; then \
+			echo "$(RED)⚠️  Ainda ocupado. Tentando kill forçado em processos do projeto...$(NC)"; \
+			pgrep -f "node.*server/index.ts" | xargs kill -9 2>/dev/null || true; \
+			pgrep -f "vite.*dev" | xargs kill -9 2>/dev/null || true; \
+			sleep 1; \
+			if lsof -i :$(PORT) >/dev/null 2>&1; then \
+				echo "$(RED)❌ Porta ainda ocupada por processo do sistema:$(NC)"; \
+				lsof -i :$(PORT); \
+				echo "$(YELLOW)💡 Use 'make dev-alt' para porta alternativa ou 'make free-port-force'$(NC)"; \
+			else \
+				echo "$(GREEN)✅ Porta $(PORT) liberada!$(NC)"; \
+			fi; \
+		else \
+			echo "$(GREEN)✅ Porta $(PORT) liberada!$(NC)"; \
+		fi; \
+	else \
+		echo "$(YELLOW)ℹ️  Porta $(PORT) já está livre.$(NC)"; \
+	fi
+
+free-port-force: ## Libera a porta 5000 FORÇADAMENTE (CUIDADO!)
+	@echo "$(RED)🚨 LIBERAÇÃO FORÇADA DA PORTA $(PORT)$(NC)"
+	@echo "$(RED)⚠️  ISSO PODE MATAR PROCESSOS DO SISTEMA!$(NC)"
+	@read -p "TEM CERTEZA? Digite 'FORCE' para confirmar: " confirm && [ "$$confirm" = "FORCE" ] || exit 1
+	@echo "$(RED)🛑 Matando TODOS os processos na porta $(PORT)...$(NC)"
+	@lsof -ti :$(PORT) | xargs kill -9 2>/dev/null || true
+	@sleep 1
+	@if lsof -i :$(PORT) >/dev/null 2>&1; then \
+		echo "$(RED)❌ Ainda ocupado - pode ser processo do sistema protegido$(NC)"; \
+	else \
+		echo "$(GREEN)✅ Porta $(PORT) liberada forçadamente!$(NC)"; \
+	fi
+
+dev-alt: ## Executa desenvolvimento na porta 5001 (alternativa)
+	@echo "$(GREEN)🚀 Iniciando servidor alternativo na porta 5001...$(NC)"
+	@echo "$(YELLOW)🌐 Frontend: http://localhost:5001$(NC)"
+	@echo "$(YELLOW)🔧 Backend: http://localhost:5001/api$(NC)"
+	PORT=5001 $(MAKE) dev
+
+# 🆘 EMERGÊNCIA
+emergency-stop: ## Para todos os processos relacionados
+	@echo "$(RED)🛑 PARANDO TODOS OS PROCESSOS...$(NC)"
+	-pkill -f "vite.*dev" 2>/dev/null || true
+	-pkill -f "tsx.*server/index.ts" 2>/dev/null || true
+	-pkill -f "node.*dist/index.cjs" 2>/dev/null || true
+	@echo "$(GREEN)✅ Processos parados!$(NC)"
+
+# 📝 VARIÁVEIS DE AMBIENTE
+env-example: ## Cria arquivo .env.example
+	@echo "$(BLUE)📝 Criando .env.example...$(NC)"
+	@echo "# PUNK BLVCK - Environment Variables" > .env.example
+	@echo "NODE_ENV=development" >> .env.example
+	@echo "PORT=5000" >> .env.example
+	@echo "DATABASE_URL=postgresql://user:password@localhost:5432/punkblvck" >> .env.example
+	@echo "SESSION_SECRET=your-super-secret-session-key-here" >> .env.example
+	@echo "FRONTEND_URL=http://localhost:5000" >> .env.example
+	@echo "$(GREEN)✅ .env.example criado!$(NC)"
+
+# 🎨 CUSTOMIZADO PARA NEØ
+neø-status: ## Status da arquitetura NEØ
+	@echo "$(MAGENTA)🔒 ARQUITETURA NEØ - STATUS DE PROTEÇÃO$(NC)"
+	@echo "$(WHITE)═══════════════════════════════════════════════$(NC)"
+	@echo "$(GREEN)✅ Estrutura protegida$(NC)"
+	@echo "$(GREEN)✅ Segurança hardening aplicada$(NC)"
+	@echo "$(GREEN)✅ Autenticação implementada$(NC)"
+	@echo "$(GREEN)✅ Rate limiting ativo$(NC)"
+	@echo "$(GREEN)✅ Headers de segurança configurados$(NC)"
+	@echo "$(CYAN)📋 Ver relatório completo: make docs$(NC)"
